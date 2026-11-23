@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PMS 工时申报工具</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部状态栏 -->
+    <header id="header">
+      <div class="header-left">
+        <span class="app-title">⏱ PMS 工时申报</span>
+        <span id="user-badge" class="user-badge hidden"></span>
+      </div>
+      <div class="header-right">
+        <button id="btn-settings" class="btn btn-sm btn-ghost hidden">⚙ 设置</button>
+        <button id="btn-logout" class="btn btn-sm btn-ghost hidden">退出登录</button>
+      </div>
+    </header>
+
+    <!-- 登录面板 -->
+    <section id="panel-login" class="panel">
+      <div class="login-card">
+        <h2>登录 Bio-Cloud</h2>
+        <div class="form-group">
+          <label>账号</label>
+          <input type="text" id="input-account" placeholder="手机号" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="input-pwd" placeholder="密码">
+        </div>
+        <button id="btn-login" class="btn btn-primary btn-block">登录</button>
+        <p id="login-error" class="error-text hidden"></p>
+      </div>
+    </section>
+
+    <!-- 主面板 -->
+    <section id="panel-main" class="panel hidden">
+      <div class="main-layout">
+        <!-- 左侧：新建申报 -->
+        <div class="left-col">
+          <div class="card">
+            <div class="card-header">
+              <h3>新建工时申报</h3>
+              <button id="btn-refresh-prepare" class="btn btn-sm btn-ghost" title="刷新项目数据">🔄</button>
+            </div>
+            <div class="card-body">
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label>项目</label>
+                  <select id="select-project"><option value="">加载中...</option></select>
+                </div>
+                <div class="form-group flex-1">
+                  <label>任务</label>
+                  <select id="select-task"><option value="">先选项目</option></select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label>日期范围</label>
+                  <div class="date-range">
+                    <input type="date" id="input-date-start">
+                    <span>至</span>
+                    <input type="date" id="input-date-end">
+                  </div>
+                </div>
+                <div class="form-group" style="width:90px">
+                  <label>每日工时</label>
+                  <input type="number" id="input-hours" value="8" min="1" max="24" step="1" title="申报只记整数，9.5 小时记为 9">
+                </div>
+              </div>
+              <p id="date-summary" class="hint-text">选择日期后，将自动跳过周末、法定节假日、调休休息日和已申报日期</p>
+              <div class="form-group">
+                <label>模块目录</label>
+                <div class="file-row">
+                  <select id="select-module" class="flex-1"><option value="">随机模块</option></select>
+                  <button id="btn-scan-modules" class="btn btn-sm" title="刷新模块列表">🔄</button>
+                </div>
+                <p class="hint-text">附件名示例：BackupFiles20261028_163512.zip，时间取当天 16:00–17:00</p>
+              </div>
+              <div class="form-group">
+                <label>备注 <span class="optional">(留空则LLM自动生成)</span></label>
+                <input type="text" id="input-remarks" placeholder="留空 = 根据抽取文件自动生成修改记录">
+              </div>
+              <label class="checkbox-row">
+                <input type="checkbox" id="chk-auto-file" checked>
+                <span>自动生成代码附件 + AI备注</span>
+              </label>
+              <button id="btn-submit" class="btn btn-primary btn-block">提交申报</button>
+              <button id="btn-open-audit" class="btn btn-block btn-audit">核对工时申报</button>
+              <p class="hint-text">按日期核对申报时长是否等于「每日工时 − 请假 + 加班」。休息日和法定节假日只应申报加班时长。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧：申报列表 -->
+        <div class="right-col">
+          <div class="card">
+            <div class="card-header">
+              <h3>申报记录</h3>
+              <button id="btn-refresh-list" class="btn btn-sm btn-ghost" title="刷新列表">🔄</button>
+            </div>
+            <div class="card-body">
+              <div id="declaration-list" class="declaration-list">
+                <p class="placeholder">加载中...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 设置弹窗 -->
+    <div id="settings-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>设置</h3>
+          <button id="btn-close-settings" class="btn btn-sm btn-ghost">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>项目工作目录</label>
+            <div class="file-row">
+              <input type="text" id="input-project-dir" readonly placeholder="选择包含模块文件夹的目录">
+              <button id="btn-select-dir" class="btn btn-sm">选择</button>
+            </div>
+            <p class="hint-text">目录下的一级子文件夹将作为“模块”被随机抽取</p>
+          </div>
+          <hr class="divider">
+          <div class="form-group">
+            <label>LLM API 地址</label>
+            <input type="text" id="input-llm-url" placeholder="https://api.openai.com/v1/chat/completions">
+          </div>
+          <div class="form-group">
+            <label>API Key</label>
+            <input type="password" id="input-llm-key" placeholder="sk-...">
+          </div>
+          <div class="form-group">
+            <label>模型名称</label>
+            <input type="text" id="input-llm-model" placeholder="gpt-4o-mini">
+          </div>
+          <button id="btn-save-settings" class="btn btn-primary btn-block">保存设置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 核对工时 -->
+    <div id="audit-modal" class="modal-overlay hidden">
+      <div class="modal-card modal-card-wide">
+        <div class="modal-header">
+          <h3>核对工时申报</h3>
+          <button id="btn-close-audit" class="btn btn-sm btn-ghost">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>开始日期</label>
+              <input type="date" id="audit-date-start">
+            </div>
+            <div class="form-group flex-1">
+              <label>结束日期</label>
+              <input type="date" id="audit-date-end">
+            </div>
+          </div>
+          <p class="hint-text">计入审核中和已通过的加班、请假。加班时长用加班申请里的「加班时长」。审批中的申报可以撤回并删除后按应申报时长重报；已通过的不能撤回，只显示问题。</p>
+          <button id="btn-run-audit" class="btn btn-primary btn-block">开始核对</button>
+          <p id="audit-summary" class="audit-summary"></p>
+          <div id="audit-batch" class="audit-batch hidden">
+            <label class="checkbox-row audit-select-all">
+              <input type="checkbox" id="audit-select-all">
+              <span>全选可重报</span>
+            </label>
+            <button id="btn-audit-rewrite-selected" class="btn btn-sm btn-primary" disabled>重新上报所选</button>
+          </div>
+          <p id="audit-batch-hint" class="hint-text hidden">勾选后批量重新上报。未申报需要选择项目和任务。每条需填写申报理由；附件默认按日期自动生成 zip，也可以沿用原附件或另选文件。</p>
+          <div id="audit-list" class="declaration-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Loading overlay -->
+    <div id="loading" class="loading-overlay hidden">
+      <div class="spinner"></div>
+      <p id="loading-text">处理中...</p>
+    </div>
+  </div>
+
+  <script src="holidays.js"></script>
+  <script src="audit.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
